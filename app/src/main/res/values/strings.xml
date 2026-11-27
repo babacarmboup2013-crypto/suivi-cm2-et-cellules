@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">Suivi CM2</string>
+    <string name="app_subtitle">Suivi pédagogique des 40 écoles CM2</string>
+    <string name="sign_in_google">Se connecter avec Google</string>
+    <string name="sign_out">Déconnexion</string>
+    <string name="tab_synthesis">Synthèse</string>
+    <string name="tab_schools">40 Écoles</string>
+    <string name="tab_tests">Tests</string>
+    <string name="tab_stats">Statistiques</string>
+    <string name="tab_access">Accès</string>
+    <string name="tab_superadmin">Superadmin</string>
+    <string name="settings_thresholds">Seuils de maîtrise</string>
+    <string name="add_assessment">Nouveau test</string>
+    <string name="add_school">Nouvelle école</string>
+    <string name="add_operator">Nouvel utilisateur</string>
+    <string name="add_student">Nouvel élève</string>
+    <string name="init_40_schools">Initialiser les 40 écoles CM2</string>
+    <string name="gender_boy">Garçon</string>
+    <string name="gender_girl">Fille</string>
+    <string name="test_weekly">Hebdomadaire</string>
+    <string name="test_monthly">Grand Test Mensuel</string>
+    <string name="decision_max">Maîtrise Maximale</string>
+    <string name="decision_min">Maîtrise Minimale</string>
+    <string name="decision_improve">À améliorer</string>
+    <string name="decision_reinforce">À renforcer</string>
+    <string name="cd_hero_banner">Illustration de suivi scolaire CM2 avec graphiques</string>
+    <string name="cd_settings">Configurer les seuils de maîtrise</string>
+    <string name="cd_sign_out">Se déconnecter</string>
+    <string name="cd_add">Ajouter</string>
+    <string name="cd_edit">Modifier</string>
+    <string name="cd_delete">Supprimer</string>
+    <string name="cd_back">Retour</string>
+</resources>

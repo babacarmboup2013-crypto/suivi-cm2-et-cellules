@@ -1,0 +1,500 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Refus global par défaut : chaque collection ouvre ensuite ses propres exceptions.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- HELPERS GLOBAUX ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentLowerEmail() {
+      return isSignedIn() && request.auth.token.email is string && request.auth.token.email.size() > 0
+             ? request.auth.token.email.lower()
+             : '';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidScore(val, maxVal) {
+      return val is number && val >= 0 && val <= maxVal;
+    }
+
+    function isValidOperatorEmails(listVal) {
+      return listVal is list &&
+             listVal.size() <= 20 &&
+             (listVal.size() == 0 || (listVal[0] is string && listVal[0].size() <= 120));
+    }
+
+    function adminEmailOf(data) {
+      return 'adminEmail' in data ? data.adminEmail : '';
+    }
+
+    function optionalAdminEmailValid(data) {
+      return !('adminEmail' in data) ||
+             (data.adminEmail is string && data.adminEmail.size() <= 120);
+    }
+
+    function isVerifiedEmailIn(emailList) {
+      return isSignedIn() &&
+             request.auth.token.email_verified == true &&
+             currentLowerEmail() in emailList;
+    }
+
+    /**
+     * Compte superadministrateur : adresse d'amorçage ou document superAdmins actif.
+     * Le document est indexé par UID Firebase.
+     */
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        currentLowerEmail() == 'babacarmboup2013@gmail.com' ||
+        (exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/superAdmins/$(request.auth.uid)).data.active == true &&
+         get(/databases/$(database)/documents/superAdmins/$(request.auth.uid)).data.email == currentLowerEmail())
+      );
+    }
+
+    /** Administrateur créé par le superadministrateur et lié au compte Google courant. */
+    function isActiveAdministrator() {
+      return isSignedIn() &&
+             request.auth.token.email_verified == true &&
+             currentLowerEmail() != '' &&
+             exists(/databases/$(database)/documents/administrators/$(currentLowerEmail())) &&
+             get(/databases/$(database)/documents/administrators/$(currentLowerEmail())).data.active == true &&
+             (get(/databases/$(database)/documents/administrators/$(currentLowerEmail())).data.uid == '' ||
+              get(/databases/$(database)/documents/administrators/$(currentLowerEmail())).data.uid == request.auth.uid);
+    }
+
+    /** Propriétaire d'une école ou d'une donnée, ou superadministrateur. */
+    function isAdminFor(adminUid, adminEmail) {
+      return isSuperAdmin() ||
+             (isActiveAdministrator() &&
+              (adminUid == request.auth.uid ||
+               (adminEmail is string && adminEmail == currentLowerEmail())));
+    }
+
+    function isAdminForData(data) {
+      return isAdminFor(data.adminUid, adminEmailOf(data));
+    }
+
+    function canWriteSchoolData(schoolId, docAdminUid) {
+      let school = getAfter(/databases/$(database)/documents/schools/$(schoolId)).data;
+      return school.adminUid == docAdminUid &&
+             (isAdminForData(school) || isVerifiedEmailIn(school.operatorEmails));
+    }
+
+    // --- VALIDATION DES ENTITÉS ---
+
+    function isValidSchool(data) {
+      return data.keys().hasAll([
+               'adminUid', 'code', 'name', 'className', 'zone', 'teacherName',
+               'boysEnrolled', 'girlsEnrolled', 'operatorEmails', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'adminUid', 'adminEmail', 'code', 'name', 'className', 'zone', 'teacherName',
+               'boysEnrolled', 'girlsEnrolled', 'operatorEmails',
+               'accessCodeHash', 'accessCodeSalt', 'createdAt', 'updatedAt'
+             ]) &&
+             optionalAdminEmailValid(data) &&
+             data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+             data.code is string && data.code.size() >= 1 && data.code.size() <= 24 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 40 &&
+             data.zone is string && data.zone.size() <= 80 &&
+             data.teacherName is string && data.teacherName.size() <= 80 &&
+             data.boysEnrolled is int && data.boysEnrolled >= 0 && data.boysEnrolled <= 300 &&
+             data.girlsEnrolled is int && data.girlsEnrolled >= 0 && data.girlsEnrolled <= 300 &&
+             isValidOperatorEmails(data.operatorEmails) &&
+             (!('accessCodeHash' in data) || (data.accessCodeHash is string && data.accessCodeHash.size() <= 128 && data.accessCodeHash.matches('^[a-fA-F0-9]*$'))) &&
+             (!('accessCodeSalt' in data) || (data.accessCodeSalt is string && data.accessCodeSalt.size() <= 64 && data.accessCodeSalt.matches('^[a-fA-F0-9]*$'))) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidOperator(data) {
+      return data.keys().hasAll([
+               'adminUid', 'fullName', 'email', 'schoolId', 'schoolCode', 'schoolName',
+               'role', 'active', 'pinHash', 'pinSalt', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'adminUid', 'adminEmail', 'fullName', 'email', 'schoolId', 'schoolCode', 'schoolName',
+               'role', 'active', 'pinHash', 'pinSalt', 'createdAt', 'updatedAt'
+             ]) &&
+             optionalAdminEmailValid(data) &&
+             data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+             data.email is string && data.email.size() <= 120 &&
+             isValidId(data.schoolId) &&
+             data.schoolCode is string && data.schoolCode.size() >= 1 && data.schoolCode.size() <= 24 &&
+             data.schoolName is string && data.schoolName.size() >= 1 && data.schoolName.size() <= 100 &&
+             data.role is string && data.role == 'OPERATEUR_SAISIE' &&
+             data.active is bool &&
+             data.pinHash is string && data.pinHash.size() <= 128 && data.pinHash.matches('^[a-fA-F0-9]*$') &&
+             data.pinSalt is string && data.pinSalt.size() <= 64 && data.pinSalt.matches('^[a-fA-F0-9]*$') &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll([
+               'adminUid', 'schoolId', 'schoolCode', 'schoolName', 'className',
+               'fullName', 'gender', 'matricule', 'operatorEmails', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'adminUid', 'adminEmail', 'schoolId', 'schoolCode', 'schoolName', 'className',
+               'fullName', 'gender', 'matricule', 'operatorEmails', 'createdAt', 'updatedAt'
+             ]) &&
+             optionalAdminEmailValid(data) &&
+             data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+             isValidId(data.schoolId) &&
+             data.schoolCode is string && data.schoolCode.size() >= 1 && data.schoolCode.size() <= 24 &&
+             data.schoolName is string && data.schoolName.size() >= 1 && data.schoolName.size() <= 100 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 40 &&
+             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+             data.gender is string && data.gender in ['GARCON', 'FILLE'] &&
+             data.matricule is string && data.matricule.size() <= 30 &&
+             isValidOperatorEmails(data.operatorEmails) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAssessment(data) {
+      return data.keys().hasAll([
+               'adminUid', 'schoolId', 'schoolName', 'className', 'studentId', 'studentName',
+               'gender', 'testType', 'month', 'weekNumber',
+               'lcRessources', 'lcCompetences',
+               'mathRessources', 'mathCompetences',
+               'dmRessources', 'dmCompetences',
+               'ddRessources', 'ddCompetences',
+               'totalScore', 'decision', 'recordedBy', 'operatorEmails',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'adminUid', 'adminEmail', 'schoolId', 'schoolName', 'className', 'studentId', 'studentName',
+               'gender', 'testType', 'month', 'weekNumber',
+               'lcRessources', 'lcCompetences',
+               'mathRessources', 'mathCompetences',
+               'dmRessources', 'dmCompetences',
+               'ddRessources', 'ddCompetences',
+               'totalScore', 'decision', 'recordedBy', 'operatorEmails',
+               'createdAt', 'updatedAt'
+             ]) &&
+             optionalAdminEmailValid(data) &&
+             data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+             isValidId(data.schoolId) &&
+             data.schoolName is string && data.schoolName.size() >= 1 && data.schoolName.size() <= 100 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 40 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 80 &&
+             data.gender is string && data.gender in ['GARCON', 'FILLE'] &&
+             data.testType is string && data.testType in ['HEBDOMADAIRE', 'MENSUEL'] &&
+             data.month is string && data.month.size() >= 1 && data.month.size() <= 30 &&
+             data.weekNumber is int && data.weekNumber >= 0 && data.weekNumber <= 5 &&
+             isValidScore(data.lcRessources, 40) &&
+             isValidScore(data.lcCompetences, 60) &&
+             isValidScore(data.mathRessources, 40) &&
+             isValidScore(data.mathCompetences, 60) &&
+             isValidScore(data.dmRessources, 24) &&
+             isValidScore(data.dmCompetences, 16) &&
+             isValidScore(data.ddRessources, 24) &&
+             isValidScore(data.ddCompetences, 16) &&
+             isValidScore(data.totalScore, 280) &&
+             data.decision is string && data.decision in ['MAITRISE_MAXIMALE', 'MAITRISE_MINIMALE', 'A_AMELIORER', 'A_RENFORCER'] &&
+             data.recordedBy is string && data.recordedBy.size() <= 80 &&
+             isValidOperatorEmails(data.operatorEmails) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidThresholdSettings(data, adminUid) {
+      return data.keys().hasAll([
+               'adminUid', 'maxMasteryPct', 'minMasteryPct', 'partialMasteryPct',
+               'academicYear', 'districtName', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'adminUid', 'adminEmail', 'maxMasteryPct', 'minMasteryPct', 'partialMasteryPct',
+               'academicYear', 'districtName', 'createdAt', 'updatedAt'
+             ]) &&
+             optionalAdminEmailValid(data) &&
+             data.adminUid is string && data.adminUid == adminUid &&
+             data.maxMasteryPct is number && data.maxMasteryPct >= 50 && data.maxMasteryPct <= 100 &&
+             data.minMasteryPct is number && data.minMasteryPct >= 30 && data.minMasteryPct <= 95 &&
+             data.partialMasteryPct is number && data.partialMasteryPct >= 10 && data.partialMasteryPct <= 80 &&
+             data.minMasteryPct <= data.maxMasteryPct &&
+             data.partialMasteryPct <= data.minMasteryPct &&
+             data.academicYear is string && data.academicYear.size() >= 1 && data.academicYear.size() <= 20 &&
+             data.districtName is string && data.districtName.size() <= 100 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAdministrator(data, email) {
+      return data.keys().hasAll([
+               'email', 'fullName', 'uid', 'active', 'createdBy', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'email', 'fullName', 'uid', 'active', 'createdBy', 'createdAt', 'updatedAt'
+             ]) &&
+             data.email is string && data.email == email && data.email.size() >= 3 && data.email.size() <= 120 &&
+             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.active is bool &&
+             data.createdBy is string && data.createdBy.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSuperAdmin(data, uid) {
+      return data.keys().hasAll([
+               'email', 'fullName', 'active', 'createdBy', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'email', 'fullName', 'active', 'createdBy', 'createdAt', 'updatedAt'
+             ]) &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+             data.fullName is string && data.fullName.size() <= 80 &&
+             data.active is bool &&
+             data.createdBy is string && data.createdBy.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- 0A. SUPERADMINISTRATEURS (gérés par les superadministrateurs) ---
+
+    match /superAdmins/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) &&
+                    (uid == request.auth.uid || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+                       isValidId(uid) &&
+                       isValidSuperAdmin(incoming(), uid) &&
+                       incoming().createdBy == request.auth.uid;
+      allow update: if isSuperAdmin() &&
+                       isValidId(uid) &&
+                       isValidSuperAdmin(incoming(), uid) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'fullName', 'active', 'updatedAt'
+                       ]);
+      allow delete: if isSuperAdmin() && isValidId(uid);
+    }
+
+    // --- 0B. ADMINISTRATEURS (créés par le superadministrateur) ---
+
+    match /administrators/{email} {
+      allow get: if isSignedIn() &&
+                    (email == currentLowerEmail() || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin() &&
+                       isValidAdministrator(incoming(), email) &&
+                       incoming().createdBy == request.auth.uid;
+      allow update: if isSignedIn() && (
+        // Le superadministrateur gère le profil et le statut.
+        (isSuperAdmin() &&
+         isValidAdministrator(incoming(), email) &&
+         existing().email == email &&
+         incoming().diff(existing()).affectedKeys().hasOnly([
+           'fullName', 'active', 'updatedAt'
+         ])) ||
+        // L'administrateur invité lie son UID Firebase une seule fois.
+        (request.auth.token.email_verified == true &&
+         email == currentLowerEmail() &&
+         existing().uid == '' &&
+         incoming().uid == request.auth.uid &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'updatedAt']))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- 1. ÉCOLES (écriture admin/superadmin ; lecture admin + opérateurs assignés) ---
+
+    match /schools/{schoolId} {
+      allow get: if isSignedIn() && isValidId(schoolId) &&
+                    (isAdminForData(existing().data) || isVerifiedEmailIn(existing().operatorEmails));
+      allow list: if isSignedIn() &&
+                     (isAdminForData(existing().data) || isVerifiedEmailIn(existing().operatorEmails));
+      allow create: if isSignedIn() &&
+                       isValidId(schoolId) &&
+                       isValidSchool(incoming()) &&
+                       (isSuperAdmin() || isAdminFor(incoming().adminUid, adminEmailOf(incoming().data)));
+      allow update: if isSignedIn() &&
+                       isValidId(schoolId) &&
+                       isValidSchool(incoming()) &&
+                       isAdminForData(existing().data) &&
+                       (existing().adminUid == incoming().adminUid ||
+                        (adminEmailOf(existing().data) == currentLowerEmail() &&
+                         incoming().adminUid == request.auth.uid)) &&
+                       adminEmailOf(existing().data) == adminEmailOf(incoming().data) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'adminUid', 'code', 'name', 'className', 'zone', 'teacherName',
+                         'boysEnrolled', 'girlsEnrolled', 'operatorEmails',
+                         'accessCodeHash', 'accessCodeSalt', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(schoolId) && isAdminForData(existing().data);
+    }
+
+    // --- 2. OPÉRATEURS DE SAISIE (créés par l'admin ou le superadmin) ---
+
+    match /operators/{operatorId} {
+      allow get: if isSignedIn() && isValidId(operatorId) &&
+                    (isAdminForData(existing().data) ||
+                     (request.auth.token.email_verified == true &&
+                      currentLowerEmail() != '' &&
+                      existing().email == currentLowerEmail() &&
+                      existing().active == true));
+      allow list: if isSignedIn() &&
+                     (isAdminForData(existing().data) ||
+                      (request.auth.token.email_verified == true &&
+                       currentLowerEmail() != '' &&
+                       existing().email == currentLowerEmail() &&
+                       existing().active == true));
+      allow create: if isSignedIn() &&
+                       isValidId(operatorId) &&
+                       isValidOperator(incoming()) &&
+                       isAdminFor(incoming().adminUid, adminEmailOf(incoming().data)) &&
+                       existsAfter(/databases/$(database)/documents/schools/$(incoming().schoolId)) &&
+                       canWriteSchoolData(incoming().schoolId, incoming().adminUid);
+      allow update: if isSignedIn() &&
+                       isValidId(operatorId) &&
+                       isValidOperator(incoming()) &&
+                       isAdminForData(existing().data) &&
+                       (existing().adminUid == incoming().adminUid ||
+                        (adminEmailOf(existing().data) == currentLowerEmail() &&
+                         incoming().adminUid == request.auth.uid)) &&
+                       existing().role == incoming().role &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'adminUid', 'fullName', 'email', 'schoolId', 'schoolCode', 'schoolName',
+                         'active', 'pinHash', 'pinSalt', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(operatorId) && isAdminForData(existing().data);
+    }
+
+    // --- 3. ÉLÈVES (admin, superadmin et opérateurs assignés) ---
+
+    match /students/{studentId} {
+      allow get: if isSignedIn() && isValidId(studentId) &&
+                    (isAdminForData(existing().data) || isVerifiedEmailIn(existing().operatorEmails));
+      allow list: if isSignedIn() &&
+                     (isAdminForData(existing().data) || isVerifiedEmailIn(existing().operatorEmails));
+      allow create: if isSignedIn() &&
+                       isValidId(studentId) &&
+                       isValidStudent(incoming()) &&
+                       existsAfter(/databases/$(database)/documents/schools/$(incoming().schoolId)) &&
+                       canWriteSchoolData(incoming().schoolId, incoming().adminUid);
+      allow update: if isSignedIn() &&
+                       isValidId(studentId) &&
+                       isValidStudent(incoming()) &&
+                       (incoming().adminUid == existing().adminUid ||
+                        (adminEmailOf(existing().data) == currentLowerEmail() &&
+                         incoming().adminUid == request.auth.uid)) &&
+                       incoming().schoolId == existing().schoolId &&
+                       incoming().createdAt == existing().createdAt && (
+                         (isAdminForData(existing().data) &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'adminUid', 'adminEmail', 'schoolCode', 'schoolName', 'className',
+                            'fullName', 'gender', 'matricule', 'operatorEmails', 'updatedAt'
+                          ])) ||
+                         (isVerifiedEmailIn(existing().operatorEmails) &&
+                          canWriteSchoolData(existing().schoolId, existing().adminUid) &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'fullName', 'gender', 'matricule', 'updatedAt'
+                          ]))
+                       );
+      allow delete: if isSignedIn() &&
+                       isValidId(studentId) &&
+                       (isAdminForData(existing().data) ||
+                        (isVerifiedEmailIn(existing().operatorEmails) &&
+                         canWriteSchoolData(existing().schoolId, existing().adminUid)));
+    }
+
+    // --- 4. ÉVALUATIONS (admin, superadmin et opérateurs assignés) ---
+
+    match /assessments/{assessmentId} {
+      allow get: if isSignedIn() && isValidId(assessmentId) &&
+                    (isAdminForData(existing().data) || isVerifiedEmailIn(existing().operatorEmails));
+      allow list: if isSignedIn() &&
+                     (isAdminForData(existing().data) || isVerifiedEmailIn(existing().operatorEmails));
+      allow create: if isSignedIn() &&
+                       isValidId(assessmentId) &&
+                       isValidAssessment(incoming()) &&
+                       existsAfter(/databases/$(database)/documents/schools/$(incoming().schoolId)) &&
+                       canWriteSchoolData(incoming().schoolId, incoming().adminUid);
+      allow update: if isSignedIn() &&
+                       isValidId(assessmentId) &&
+                       isValidAssessment(incoming()) &&
+                       (incoming().adminUid == existing().adminUid ||
+                        (adminEmailOf(existing().data) == currentLowerEmail() &&
+                         incoming().adminUid == request.auth.uid)) &&
+                       incoming().schoolId == existing().schoolId &&
+                       incoming().createdAt == existing().createdAt && (
+                         (isAdminForData(existing().data) &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'adminUid', 'adminEmail', 'schoolName', 'className', 'studentId', 'studentName',
+                            'gender', 'testType', 'month', 'weekNumber',
+                            'lcRessources', 'lcCompetences',
+                            'mathRessources', 'mathCompetences',
+                            'dmRessources', 'dmCompetences',
+                            'ddRessources', 'ddCompetences',
+                            'totalScore', 'decision', 'recordedBy', 'operatorEmails', 'updatedAt'
+                          ])) ||
+                         (isVerifiedEmailIn(existing().operatorEmails) &&
+                          canWriteSchoolData(existing().schoolId, existing().adminUid) &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'studentId', 'studentName', 'gender',
+                            'testType', 'month', 'weekNumber',
+                            'lcRessources', 'lcCompetences',
+                            'mathRessources', 'mathCompetences',
+                            'dmRessources', 'dmCompetences',
+                            'ddRessources', 'ddCompetences',
+                            'totalScore', 'decision', 'recordedBy', 'updatedAt'
+                          ]))
+                       );
+      allow delete: if isSignedIn() &&
+                       isValidId(assessmentId) &&
+                       (isAdminForData(existing().data) ||
+                        (isVerifiedEmailIn(existing().operatorEmails) &&
+                         canWriteSchoolData(existing().schoolId, existing().adminUid)));
+    }
+
+    // --- 5. SEUILS DE MAÎTRISE (admin propriétaire ou superadministrateur) ---
+
+    match /settings/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) &&
+                    (request.auth.uid == adminUid || isSuperAdmin());
+      allow list: if isSignedIn() && (request.auth.uid == adminUid || isSuperAdmin());
+      allow create: if isSignedIn() && isValidId(adminUid) &&
+                       (request.auth.uid == adminUid || isSuperAdmin()) &&
+                       isValidThresholdSettings(incoming(), adminUid);
+      allow update: if isSignedIn() && isValidId(adminUid) &&
+                       (request.auth.uid == adminUid || isSuperAdmin()) &&
+                       isValidThresholdSettings(incoming(), adminUid) &&
+                       incoming().adminUid == existing().adminUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'adminEmail', 'maxMasteryPct', 'minMasteryPct', 'partialMasteryPct',
+                         'academicYear', 'districtName', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(adminUid) &&
+                       (request.auth.uid == adminUid || isSuperAdmin());
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Suivi CM2",
+  "description": "Outil de suivi de 40 écoles CM2 avec hiérarchie Superadministrateur > Administrateur > Opérateur de saisie : tests hebdomadaires et grands tests mensuels, seuils de maîtrise (LC, Maths, ESVS), statistiques par activité et synthèse globale par genre (Garçon/Fille).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

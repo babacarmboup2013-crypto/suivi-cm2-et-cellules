@@ -1,0 +1,435 @@
+{
+  "entities": {
+    "School": {
+      "title": "School",
+      "description": "Une des 40 écoles CM2 créée et gérée exclusivement par l'administrateur, avec code d'accès confidentiel et liste des emails d'utilisateurs de saisie assignés.",
+      "type": "object",
+      "properties": {
+        "adminUid": {
+          "type": "string",
+          "description": "UID de l'administrateur propriétaire de cette circonscription."
+        },
+        "adminEmail": {
+          "type": "string",
+          "description": "E-mail Google de l'administrateur propriétaire (utilisé tant que son UID n'est pas lié)."
+        },
+        "code": {
+          "type": "string",
+          "description": "Code court de l'école (ex. EC-01 à EC-40)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Nom de l'école élémentaire."
+        },
+        "className": {
+          "type": "string",
+          "description": "Libellé de la classe CM2."
+        },
+        "zone": {
+          "type": "string",
+          "description": "Zone pédagogique ou commune."
+        },
+        "teacherName": {
+          "type": "string",
+          "description": "Nom de l'enseignant(e) ou directeur CM2."
+        },
+        "boysEnrolled": {
+          "type": "integer",
+          "description": "Effectif inscrit garçons en CM2."
+        },
+        "girlsEnrolled": {
+          "type": "integer",
+          "description": "Effectif inscrit filles en CM2."
+        },
+        "operatorEmails": {
+          "type": "array",
+          "description": "Emails Google (en minuscules, max 20) des utilisateurs de saisie autorisés sur cette école."
+        },
+        "accessCodeHash": {
+          "type": "string",
+          "description": "Empreinte PBKDF2-HMAC-SHA256 hexadécimale du code d'accès confidentiel de l'école."
+        },
+        "accessCodeSalt": {
+          "type": "string",
+          "description": "Sel cryptographique hexadécimal du code d'accès de l'école."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "adminUid",
+        "code",
+        "name",
+        "className",
+        "zone",
+        "teacherName",
+        "boysEnrolled",
+        "girlsEnrolled",
+        "operatorEmails",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DataEntryOperator": {
+      "title": "DataEntryOperator",
+      "description": "Utilisateur de saisie rattaché à une école CM2, créé et géré exclusivement par l'administrateur.",
+      "type": "object",
+      "properties": {
+        "adminUid": {
+          "type": "string",
+          "description": "UID de l'administrateur ayant créé l'utilisateur de saisie."
+        },
+        "adminEmail": {
+          "type": "string",
+          "description": "E-mail Google de l'administrateur propriétaire de l'école."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Nom complet de l'utilisateur de saisie."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email Google en minuscules (optionnel si utilisation sur appareil partagé avec code PIN)."
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "Identifiant de l'école CM2 assignée."
+        },
+        "schoolCode": {
+          "type": "string",
+          "description": "Code de l'école assignée."
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Nom de l'école assignée."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["OPERATEUR_SAISIE"],
+          "description": "Rôle figé pour empêcher toute élévation de privilèges."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Statut actif/désactivé du compte de saisie."
+        },
+        "pinHash": {
+          "type": "string",
+          "description": "Empreinte PBKDF2-HMAC-SHA256 hexadécimale du code d'accès personnel de l'opérateur."
+        },
+        "pinSalt": {
+          "type": "string",
+          "description": "Sel cryptographique hexadécimal du code d'accès personnel."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "adminUid",
+        "fullName",
+        "email",
+        "schoolId",
+        "schoolCode",
+        "schoolName",
+        "role",
+        "active",
+        "pinHash",
+        "pinSalt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Élève de CM2 enregistré de façon persistante dans la liste d'une école pour être réutilisé automatiquement lors des tests suivants.",
+      "type": "object",
+      "properties": {
+        "adminUid": {
+          "type": "string",
+          "description": "UID de l'administrateur propriétaire."
+        },
+        "adminEmail": {
+          "type": "string",
+          "description": "E-mail Google de l'administrateur propriétaire."
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "Identifiant de l'école de l'élève."
+        },
+        "schoolCode": {
+          "type": "string",
+          "description": "Code de l'école."
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Nom de l'école."
+        },
+        "className": {
+          "type": "string",
+          "description": "Classe CM2 de l'élève."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Nom et prénom de l'élève."
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["GARCON", "FILLE"],
+          "description": "Genre de l'élève."
+        },
+        "matricule": {
+          "type": "string",
+          "description": "Numéro matricule ou identifiant optionnel."
+        },
+        "operatorEmails": {
+          "type": "array",
+          "description": "Emails dénormalisés des utilisateurs de saisie autorisés sur cette école."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "adminUid",
+        "schoolId",
+        "schoolCode",
+        "schoolName",
+        "className",
+        "fullName",
+        "gender",
+        "matricule",
+        "operatorEmails",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Assessment": {
+      "title": "Assessment",
+      "description": "Résultat d'un test hebdomadaire ou grand test mensuel pour un élève de CM2 (barème /280).",
+      "type": "object",
+      "properties": {
+        "adminUid": {
+          "type": "string",
+          "description": "UID de l'administrateur propriétaire."
+        },
+        "adminEmail": {
+          "type": "string",
+          "description": "E-mail Google de l'administrateur propriétaire."
+        },
+        "schoolId": {
+          "type": "string",
+          "description": "Identifiant de l'école."
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Nom de l'école."
+        },
+        "className": {
+          "type": "string",
+          "description": "Classe CM2."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Identifiant de l'élève dans la collection students."
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Nom et prénom de l'élève."
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["GARCON", "FILLE"],
+          "description": "Genre de l'élève."
+        },
+        "testType": {
+          "type": "string",
+          "enum": ["HEBDOMADAIRE", "MENSUEL"],
+          "description": "Type d'évaluation."
+        },
+        "month": {
+          "type": "string",
+          "description": "Mois de l'évaluation."
+        },
+        "weekNumber": {
+          "type": "integer",
+          "description": "Semaine (1..5 pour hebdomadaire, 0 pour mensuel)."
+        },
+        "lcRessources": { "type": "number" },
+        "lcCompetences": { "type": "number" },
+        "mathRessources": { "type": "number" },
+        "mathCompetences": { "type": "number" },
+        "dmRessources": { "type": "number" },
+        "dmCompetences": { "type": "number" },
+        "ddRessources": { "type": "number" },
+        "ddCompetences": { "type": "number" },
+        "totalScore": { "type": "number" },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "MAITRISE_MAXIMALE",
+            "MAITRISE_MINIMALE",
+            "A_AMELIORER",
+            "A_RENFORCER"
+          ]
+        },
+        "recordedBy": {
+          "type": "string",
+          "description": "Nom ou email de la personne ayant saisi le test."
+        },
+        "operatorEmails": {
+          "type": "array",
+          "description": "Emails dénormalisés des utilisateurs de saisie autorisés sur cette école."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "adminUid",
+        "schoolId",
+        "schoolName",
+        "className",
+        "studentId",
+        "studentName",
+        "gender",
+        "testType",
+        "month",
+        "weekNumber",
+        "lcRessources",
+        "lcCompetences",
+        "mathRessources",
+        "mathCompetences",
+        "dmRessources",
+        "dmCompetences",
+        "ddRessources",
+        "ddCompetences",
+        "totalScore",
+        "decision",
+        "recordedBy",
+        "operatorEmails",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ThresholdSettings": {
+      "title": "ThresholdSettings",
+      "description": "Seuils de maîtrise et paramètres généraux gérés par l'administrateur.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "maxMasteryPct": { "type": "number" },
+        "minMasteryPct": { "type": "number" },
+        "partialMasteryPct": { "type": "number" },
+        "academicYear": { "type": "string" },
+        "districtName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "adminUid",
+        "maxMasteryPct",
+        "minMasteryPct",
+        "partialMasteryPct",
+        "academicYear",
+        "districtName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdministratorAccount": {
+      "title": "AdministratorAccount",
+      "description": "Compte administrateur créé par le superadministrateur. L'identifiant du document est l'e-mail Google normalisé.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "uid": {
+          "type": "string",
+          "description": "UID Firebase lié automatiquement à la première connexion de l'administrateur."
+        },
+        "active": { "type": "boolean" },
+        "createdBy": {
+          "type": "string",
+          "description": "UID du superadministrateur ayant créé ce compte."
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "fullName", "uid", "active", "createdBy", "createdAt", "updatedAt"]
+    },
+    "SuperAdminAccount": {
+      "title": "SuperAdminAccount",
+      "description": "Compte superadministrateur, identifié par l'UID Firebase.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "fullName", "active", "createdBy", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/superAdmins/{uid}": {
+      "schema": { "$ref": "#/entities/SuperAdminAccount" },
+      "description": "Comptes superadministrateurs pouvant créer des administrateurs et attribuer des écoles."
+    },
+    "/administrators/{email}": {
+      "schema": { "$ref": "#/entities/AdministratorAccount" },
+      "description": "Administrateurs créés par le superadministrateur."
+    },
+    "/schools/{schoolId}": {
+      "schema": { "$ref": "#/entities/School" },
+      "description": "Les 40 écoles CM2 créées par l'administrateur et accessibles en lecture aux opérateurs assignés."
+    },
+    "/operators/{operatorId}": {
+      "schema": { "$ref": "#/entities/DataEntryOperator" },
+      "description": "Utilisateurs de saisie créés par l'administrateur et affectés à une école CM2."
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Liste persistante des élèves CM2 par école pour sélection automatique aux tests suivants."
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/Assessment" },
+      "description": "Résultats des tests hebdomadaires et grands tests mensuels liés aux élèves et aux écoles."
+    },
+    "/settings/{adminUid}": {
+      "schema": { "$ref": "#/entities/ThresholdSettings" },
+      "description": "Seuils de maîtrise de l'administrateur."
+    }
+  }
+}
