@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Firebase Auth et Firestore sont initialisés côté navigateur uniquement :
 // les variables NEXT_PUBLIC_* sont injectées au build, mais aucun appel Firebase
@@ -15,5 +16,9 @@ const HomeClient = dynamic(() => import("@/components/HomeClient"), {
 });
 
 export default function HomePage() {
-  return <HomeClient />;
+  return (
+    <ErrorBoundary>
+      <HomeClient />
+    </ErrorBoundary>
+  );
 }

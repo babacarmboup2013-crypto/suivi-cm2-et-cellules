@@ -100,7 +100,20 @@ node --test firestore.test.js
   n’est affiché qu’une seule fois à la création.
 - Statistiques portées fidèlement de `StatisticsEngine.kt` (`src/lib/stats.ts`).
 
-## 7. Commandes utiles
+## 7. Dépannage
+
+- **« Application error: a client-side exception has occurred »** : il manque au moins
+  une variable `NEXT_PUBLIC_FIREBASE_*` au moment du build Vercel. L’application
+  affiche désormais un écran « Configuration Firebase incomplète » qui liste les
+  variables absentes. Ajoutez-les dans Vercel puis **redéployez** : les variables
+  `NEXT_PUBLIC_*` sont intégrées au bundle JavaScript pendant le build, un simple
+  redémarrage ne suffit pas.
+- Si la configuration est complète mais qu’une erreur survient, un panneau
+  d’erreur affiche le message et la pile JavaScript au lieu de l’erreur générique.
+- Vérifiez aussi que le domaine Vercel est autorisé dans Firebase Auth, sinon la
+  connexion Google est refusée.
+
+## 8. Commandes utiles
 
 ```bash
 npm run dev        # serveur local
